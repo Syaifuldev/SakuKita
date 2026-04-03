@@ -1,129 +1,163 @@
 /* ============================================
-   SakuKita - Data Management (LocalStorage)
+   SakuKita - Data Management (Supabase)
    CRUD operasi transaksi keuangan
    ============================================ */
 
 const SakuKitaDB = {
-  STORAGE_KEY: 'sakukita_transactions',
-  USER_KEY: 'sakukita_user',
 
-  // --- Generate unique ID ---
-  generateId() {
-    return 'txn_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+  // --- Get Current User ---
+  async getUser() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // Get profile with username
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', user.id)
+      .single();
+
+    return profile ? { id: user.id, username: profile.username } : null;
   },
 
-  // --- User ---
-  getUser() {
-    const data = localStorage.getItem(this.USER_KEY);
-    return data ? JSON.parse(data) : null;
+  // --- Register ---
+  async registerUser(username, password) {
+    // Check if username is taken
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('username', username)
+      .single();
+
+    if (existing) return { error: 'Username sudah dipakai' };
+
+    // Sign up with fake email (username@sakukita.app)
+    const email = `${username.toLowerCase().replace(/\s+/g, '')}@sakukita.app`;
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password
+    });
+
+    if (error) return { error: error.message };
+
+    // Create profile
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({ id: data.user.id, username });
+
+    if (profileError) return { error: profileError.message };
+
+    return { user: { id: data.user.id, username } };
   },
 
-  saveUser(user) {
-    localStorage.setItem(this.USER_KEY, JSON.stringify(user));
+  // --- Login ---
+  async loginUser(username, password) {
+    const email = `${username.toLowerCase().replace(/\s+/g, '')}@sakukita.app`;
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) return { error: 'Username atau password salah' };
+    return { user: { id: data.user.id, username } };
   },
 
-  // --- Get All Users (for login validation) ---
-  getAllUsers() {
-    const data = localStorage.getItem('sakukita_users');
-    return data ? JSON.parse(data) : [];
+  // --- Logout ---
+  async logoutUser() {
+    await supabase.auth.signOut();
   },
 
-  saveAllUsers(users) {
-    localStorage.setItem('sakukita_users', JSON.stringify(users));
-  },
-
-  registerUser(username, password) {
-    const users = this.getAllUsers();
-    const exists = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-    if (exists) return { error: 'Username sudah dipakai' };
-
-    const newUser = {
-      id: 'usr_' + Date.now(),
-      username,
-      password,
-      createdAt: new Date().toISOString()
-    };
-    users.push(newUser);
-    this.saveAllUsers(users);
-    this.saveUser(newUser);
-    return { user: newUser };
-  },
-
-  loginUser(username, password) {
-    const users = this.getAllUsers();
-    const found = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
-    if (!found) return { error: 'Username atau password salah' };
-    this.saveUser(found);
-    return { user: found };
-  },
-
-  logoutUser() {
-    localStorage.removeItem(this.USER_KEY);
-  },
-
-  // --- Get All Transactions (for current user) ---
-  getAll() {
-    const user = this.getUser();
+  // --- Get All Transactions (current user) ---
+  async getAll() {
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
-    const data = localStorage.getItem(this.STORAGE_KEY);
-    const all = data ? JSON.parse(data) : [];
-    return all.filter(t => t.userId === user.id);
-  },
 
-  // --- Save All ---
-  _saveAllRaw(transactions) {
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(transactions));
-  },
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false });
 
-  _getAllRaw() {
-    const data = localStorage.getItem(this.STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    return error ? [] : data;
   },
 
   // --- Add Transaction ---
-  add(transaction) {
-    const user = this.getUser();
+  async add(transaction) {
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const allTxns = this._getAllRaw();
-    const newTxn = {
-      id: this.generateId(),
-      userId: user.id,
-      ...transaction,
-      createdAt: new Date().toISOString()
-    };
-    allTxns.unshift(newTxn);
-    this._saveAllRaw(allTxns);
-    return newTxn;
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: user.id,
+        type: transaction.type,
+        amount: transaction.amount,
+        description: transaction.description,
+        date: transaction.date
+      })
+      .select()
+      .single();
+
+    return error ? null : data;
   },
 
   // --- Update Transaction ---
-  update(id, updatedData) {
-    const allTxns = this._getAllRaw();
-    const idx = allTxns.findIndex(t => t.id === id);
-    if (idx === -1) return null;
-    allTxns[idx] = { ...allTxns[idx], ...updatedData, updatedAt: new Date().toISOString() };
-    this._saveAllRaw(allTxns);
-    return allTxns[idx];
+  async update(id, updatedData) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .update({
+        type: updatedData.type,
+        amount: updatedData.amount,
+        description: updatedData.description,
+        date: updatedData.date
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    return error ? null : data;
   },
 
   // --- Delete Transaction ---
-  delete(id) {
-    const allTxns = this._getAllRaw();
-    const filtered = allTxns.filter(t => t.id !== id);
-    this._saveAllRaw(filtered);
+  async delete(id) {
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id);
+
+    return !error;
   },
 
   // --- Get Transaction By ID ---
-  getById(id) {
-    return this._getAllRaw().find(t => t.id === id) || null;
+  async getById(id) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    return error ? null : data;
   },
 
   // --- Filter By Month/Year ---
-  getByMonth(month, year) {
-    return this.getAll().filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === month && d.getFullYear() === year;
-    });
+  async getByMonth(month, year) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const endMonth = month + 1 > 11 ? 0 : month + 1;
+    const endYear = month + 1 > 11 ? year + 1 : year;
+    const endDate = `${endYear}-${String(endMonth + 1).padStart(2, '0')}-01`;
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('date', startDate)
+      .lt('date', endDate)
+      .order('date', { ascending: true });
+
+    return error ? [] : data;
   },
 
   // --- Calculate Summary ---
@@ -146,17 +180,25 @@ const SakuKitaDB = {
   },
 
   // --- Get Summary for Current Month ---
-  getCurrentMonthSummary() {
+  async getCurrentMonthSummary() {
     const now = new Date();
-    const monthTxns = this.getByMonth(now.getMonth(), now.getFullYear());
+    const monthTxns = await this.getByMonth(now.getMonth(), now.getFullYear());
     return this.getSummary(monthTxns);
   },
 
   // --- Get Recent Transactions ---
-  getRecent(limit = 15) {
-    const txns = this.getAll();
-    txns.sort((a, b) => new Date(b.date) - new Date(a.date));
-    return txns.slice(0, limit);
+  async getRecent(limit = 15) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false })
+      .limit(limit);
+
+    return error ? [] : data;
   },
 
   // --- Group By Date ---
@@ -181,42 +223,47 @@ const SakuKitaDB = {
 
   // --- Format Date ---
   formatDate(dateStr) {
-    const d = new Date(dateStr);
+    const d = new Date(dateStr + 'T00:00:00');
     return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
   },
 
   formatDateShort(dateStr) {
-    const d = new Date(dateStr);
+    const d = new Date(dateStr + 'T00:00:00');
     return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
   },
 
   // --- Seed Demo Data ---
-  seedDemoData() {
-    const user = this.getUser();
+  async seedDemoData() {
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
     // Cek apakah user ini sudah punya data
-    if (this.getAll().length > 0) return;
+    const { count } = await supabase
+      .from('transactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id);
+
+    if (count > 0) return;
 
     const now = new Date();
     const year = now.getFullYear();
-    const month = now.getMonth();
-    const mm = String(month + 1).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
 
     const demoData = [
-      { type: 'income', amount: 5000000, description: 'Gaji Bulanan', date: `${year}-${mm}-01` },
-      { type: 'expense', amount: 150000, description: 'Makan siang & kopi', date: `${year}-${mm}-02` },
-      { type: 'expense', amount: 50000, description: 'Grab ke kantor', date: `${year}-${mm}-02` },
-      { type: 'income', amount: 1200000, description: 'Proyek desain web', date: `${year}-${mm}-05` },
-      { type: 'expense', amount: 350000, description: 'Belanja mingguan', date: `${year}-${mm}-07` },
-      { type: 'expense', amount: 500000, description: 'Tagihan listrik & WiFi', date: `${year}-${mm}-10` },
-      { type: 'expense', amount: 100000, description: 'Nonton bioskop', date: `${year}-${mm}-12` },
-      { type: 'income', amount: 300000, description: 'Hadiah ulang tahun', date: `${year}-${mm}-15` },
-      { type: 'expense', amount: 250000, description: 'Vitamin & suplemen', date: `${year}-${mm}-18` },
-      { type: 'expense', amount: 75000, description: 'Cemilan & minuman', date: `${year}-${mm}-20` },
-      { type: 'income', amount: 800000, description: 'Penjualan online', date: `${year}-${mm}-22` },
-      { type: 'expense', amount: 200000, description: 'Beli buku & kursus', date: `${year}-${mm}-25` },
+      { user_id: user.id, type: 'income', amount: 5000000, description: 'Gaji Bulanan', date: `${year}-${mm}-01` },
+      { user_id: user.id, type: 'expense', amount: 150000, description: 'Makan siang & kopi', date: `${year}-${mm}-02` },
+      { user_id: user.id, type: 'expense', amount: 50000, description: 'Grab ke kantor', date: `${year}-${mm}-02` },
+      { user_id: user.id, type: 'income', amount: 1200000, description: 'Proyek desain web', date: `${year}-${mm}-05` },
+      { user_id: user.id, type: 'expense', amount: 350000, description: 'Belanja mingguan', date: `${year}-${mm}-07` },
+      { user_id: user.id, type: 'expense', amount: 500000, description: 'Tagihan listrik & WiFi', date: `${year}-${mm}-10` },
+      { user_id: user.id, type: 'expense', amount: 100000, description: 'Nonton bioskop', date: `${year}-${mm}-12` },
+      { user_id: user.id, type: 'income', amount: 300000, description: 'Hadiah ulang tahun', date: `${year}-${mm}-15` },
+      { user_id: user.id, type: 'expense', amount: 250000, description: 'Vitamin & suplemen', date: `${year}-${mm}-18` },
+      { user_id: user.id, type: 'expense', amount: 75000, description: 'Cemilan & minuman', date: `${year}-${mm}-20` },
+      { user_id: user.id, type: 'income', amount: 800000, description: 'Penjualan online', date: `${year}-${mm}-22` },
+      { user_id: user.id, type: 'expense', amount: 200000, description: 'Beli buku & kursus', date: `${year}-${mm}-25` },
     ];
 
-    demoData.forEach(d => this.add(d));
+    await supabase.from('transactions').insert(demoData);
   }
 };

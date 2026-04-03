@@ -1,5 +1,5 @@
 /* ============================================
-   SakuKita - Main App Logic
+   SakuKita - Main App Logic (Supabase)
    UI Interactions, Modal, Toast, Navigation
    ============================================ */
 
@@ -7,8 +7,8 @@ const App = {
   currentEditId: null,
 
   // --- Initialize ---
-  init() {
-    SakuKitaDB.seedDemoData();
+  async init() {
+    await SakuKitaDB.seedDemoData();
   },
 
   // ============ AUTH ============
@@ -27,29 +27,49 @@ const App = {
       ? 'Belum punya akun? <a href="#" onclick="App.toggleAuthMode(); return false;">Daftar</a>'
       : 'Sudah punya akun? <a href="#" onclick="App.toggleAuthMode(); return false;">Masuk</a>';
 
-    // Clear fields
     document.getElementById('login-username').value = '';
     document.getElementById('login-password').value = '';
   },
 
-  handleAuth(e) {
+  async handleAuth(e) {
     e.preventDefault();
     const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value.trim();
 
     if (!username) { this.showToast('Username harus diisi', 'error'); return; }
     if (!password) { this.showToast('Password harus diisi', 'error'); return; }
-    if (password.length < 4) { this.showToast('Password minimal 4 karakter', 'error'); return; }
+    if (password.length < 6) { this.showToast('Password minimal 6 karakter', 'error'); return; }
+
+    // Show loading
+    const btn = document.getElementById('btn-auth-submit');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<div class="spinner-sm"></div> Memproses...';
+    btn.disabled = true;
 
     let result;
     if (this.authMode === 'register') {
-      if (username.length < 3) { this.showToast('Username minimal 3 karakter', 'error'); return; }
-      result = SakuKitaDB.registerUser(username, password);
-      if (result.error) { this.showToast(result.error, 'error'); return; }
+      if (username.length < 3) { 
+        this.showToast('Username minimal 3 karakter', 'error');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        return; 
+      }
+      result = await SakuKitaDB.registerUser(username, password);
+      if (result.error) { 
+        this.showToast(result.error, 'error');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        return; 
+      }
       this.showToast('Akun berhasil dibuat! 🎉', 'success');
     } else {
-      result = SakuKitaDB.loginUser(username, password);
-      if (result.error) { this.showToast(result.error, 'error'); return; }
+      result = await SakuKitaDB.loginUser(username, password);
+      if (result.error) { 
+        this.showToast(result.error, 'error');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        return; 
+      }
       this.showToast('Selamat datang! 👋', 'success');
     }
 
@@ -57,8 +77,8 @@ const App = {
   },
 
   // ============ DASHBOARD ============
-  renderDashboard() {
-    const user = SakuKitaDB.getUser();
+  async renderDashboard() {
+    const user = await SakuKitaDB.getUser();
     if (!user) { window.location.href = 'index.html'; return; }
 
     // Greeting
@@ -74,10 +94,17 @@ const App = {
       greetingEl.innerHTML = user.username + ' <span>!</span>';
     }
 
-    const summary = SakuKitaDB.getCurrentMonthSummary();
+    // Show loading
+    document.getElementById('transaction-list').innerHTML = `
+      <div style="text-align:center;padding:32px;">
+        <div class="spinner"></div>
+        <p style="margin-top:12px;color:var(--neutral-400);font-size:var(--font-size-sm);">Memuat data...</p>
+      </div>`;
+
+    const summary = await SakuKitaDB.getCurrentMonthSummary();
     this.renderBalanceCard(summary);
     this.renderSummaryCards(summary);
-    this.renderRecentTransactions();
+    await this.renderRecentTransactions();
   },
 
   renderBalanceCard(summary) {
@@ -105,11 +132,11 @@ const App = {
     if (el4) el4.textContent = `${summary.count} catatan`;
   },
 
-  renderRecentTransactions() {
+  async renderRecentTransactions() {
     const container = document.getElementById('transaction-list');
     if (!container) return;
 
-    const txns = SakuKitaDB.getRecent(15);
+    const txns = await SakuKitaDB.getRecent(15);
 
     if (txns.length === 0) {
       container.innerHTML = `
@@ -189,7 +216,6 @@ const App = {
     const form = document.getElementById('form-transaction');
     if (form) form.reset();
     this.setTransactionType('expense');
-    // Reset date to today
     const dateEl = document.getElementById('txn-date');
     if (dateEl) dateEl.valueAsDate = new Date();
   },
@@ -206,7 +232,7 @@ const App = {
   },
 
   // --- Save Transaction ---
-  handleSaveTransaction(e) {
+  async handleSaveTransaction(e) {
     e.preventDefault();
 
     const type = this.getSelectedType();
@@ -218,23 +244,32 @@ const App = {
     if (!description) { this.showToast('Keterangan harus diisi', 'error'); return; }
     if (!date) { this.showToast('Tanggal harus diisi', 'error'); return; }
 
+    // Show loading on button
+    const btn = document.getElementById('btn-save-txn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<div class="spinner-sm"></div> Menyimpan...';
+    btn.disabled = true;
+
     const txnData = { type, amount, description, date };
 
     if (this.currentEditId) {
-      SakuKitaDB.update(this.currentEditId, txnData);
+      await SakuKitaDB.update(this.currentEditId, txnData);
       this.showToast('Catatan berhasil diperbarui! ✏️', 'success');
     } else {
-      SakuKitaDB.add(txnData);
+      await SakuKitaDB.add(txnData);
       this.showToast('Catatan berhasil ditambahkan! 🎉', 'success');
     }
 
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+
     this.closeModal();
-    this.renderDashboard();
+    await this.renderDashboard();
   },
 
   // --- Edit Transaction ---
-  openEditTransaction(id) {
-    const txn = SakuKitaDB.getById(id);
+  async openEditTransaction(id) {
+    const txn = await SakuKitaDB.getById(id);
     if (!txn) return;
 
     this.currentEditId = id;
@@ -250,13 +285,13 @@ const App = {
   },
 
   // --- Delete Transaction ---
-  deleteTransaction() {
+  async deleteTransaction() {
     if (!this.currentEditId) return;
     if (confirm('Yakin mau hapus catatan ini?')) {
-      SakuKitaDB.delete(this.currentEditId);
+      await SakuKitaDB.delete(this.currentEditId);
       this.showToast('Catatan berhasil dihapus 🗑️', 'success');
       this.closeModal();
-      this.renderDashboard();
+      await this.renderDashboard();
     }
   },
 
@@ -288,9 +323,9 @@ const App = {
   },
 
   // --- Logout ---
-  logout() {
+  async logout() {
     if (confirm('Yakin mau keluar?')) {
-      SakuKitaDB.logoutUser();
+      await SakuKitaDB.logoutUser();
       window.location.href = 'index.html';
     }
   },
@@ -300,48 +335,52 @@ const App = {
   reportYear: new Date().getFullYear(),
   reportFilter: 'all',
 
-  initReport() {
-    const user = SakuKitaDB.getUser();
+  async initReport() {
+    const user = await SakuKitaDB.getUser();
     if (!user) { window.location.href = 'index.html'; return; }
-    this.renderReport();
+    await this.renderReport();
   },
 
-  prevMonth() {
+  async prevMonth() {
     this.reportMonth--;
     if (this.reportMonth < 0) { this.reportMonth = 11; this.reportYear--; }
-    this.renderReport();
+    await this.renderReport();
   },
 
-  nextMonth() {
+  async nextMonth() {
     this.reportMonth++;
     if (this.reportMonth > 11) { this.reportMonth = 0; this.reportYear++; }
-    this.renderReport();
+    await this.renderReport();
   },
 
-  setReportFilter(filter) {
+  async setReportFilter(filter) {
     this.reportFilter = filter;
     document.querySelectorAll('.tab-filter__btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.filter === filter);
     });
-    this.renderReport();
+    await this.renderReport();
   },
 
-  renderReport() {
+  async renderReport() {
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
       'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
     const labelEl = document.getElementById('report-month-label');
     if (labelEl) labelEl.textContent = `${months[this.reportMonth]} ${this.reportYear}`;
 
-    let txns = SakuKitaDB.getByMonth(this.reportMonth, this.reportYear);
+    // Show loading
+    const tbody = document.getElementById('report-tbody');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:32px;"><div class="spinner"></div></td></tr>`;
+
+    let txns = await SakuKitaDB.getByMonth(this.reportMonth, this.reportYear);
+    const allTxns = [...txns]; // Keep full set for summary
+
     if (this.reportFilter !== 'all') {
       txns = txns.filter(t => t.type === this.reportFilter);
     }
     txns.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    const summary = SakuKitaDB.getSummary(
-      SakuKitaDB.getByMonth(this.reportMonth, this.reportYear)
-    );
+    const summary = SakuKitaDB.getSummary(allTxns);
 
     const sumIncEl = document.getElementById('report-income');
     const sumExpEl = document.getElementById('report-expense');
@@ -371,8 +410,8 @@ const App = {
       const sign = t.type === 'income' ? '+' : '-';
       const amtColor = t.type === 'income' ? 'var(--success)' : 'var(--danger)';
 
-      if (t.type === 'income') runningBalance += t.amount;
-      else runningBalance -= t.amount;
+      if (t.type === 'income') runningBalance += parseFloat(t.amount);
+      else runningBalance -= parseFloat(t.amount);
 
       html += `
         <tr>
@@ -397,21 +436,21 @@ const App = {
   },
 
   // --- Export PDF ---
-  exportPDF() {
+  async exportPDF() {
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
       'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
-    const txns = SakuKitaDB.getByMonth(this.reportMonth, this.reportYear);
+    const txns = await SakuKitaDB.getByMonth(this.reportMonth, this.reportYear);
     txns.sort((a, b) => new Date(a.date) - new Date(b.date));
     const summary = SakuKitaDB.getSummary(txns);
     const monthName = `${months[this.reportMonth]} ${this.reportYear}`;
-    const user = SakuKitaDB.getUser();
+    const user = await SakuKitaDB.getUser();
 
     let rows = '';
     let runBal = 0;
     txns.forEach((t, i) => {
       const sign = t.type === 'income' ? '+' : '-';
-      if (t.type === 'income') runBal += t.amount; else runBal -= t.amount;
+      if (t.type === 'income') runBal += parseFloat(t.amount); else runBal -= parseFloat(t.amount);
       rows += `<tr>
         <td style="padding:6px 10px; border:1px solid #ddd; text-align:center">${i + 1}</td>
         <td style="padding:6px 10px; border:1px solid #ddd">${SakuKitaDB.formatDateShort(t.date)}</td>

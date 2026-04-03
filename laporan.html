@@ -11,6 +11,9 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/layout.css">
   <link rel="stylesheet" href="css/components.css">
+  <style>
+    .spinner { width:32px;height:32px;border:3px solid var(--neutral-200);border-top-color:var(--primary-500);border-radius:50%;animation:spinOnce 0.7s linear infinite;margin:0 auto; }
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -80,11 +83,9 @@
             </tr>
           </thead>
           <tbody id="report-tbody">
-            <!-- Rendered by JS -->
+            <tr><td colspan="5" style="text-align:center;padding:32px;"><div class="spinner"></div></td></tr>
           </tbody>
-          <tfoot id="report-tfoot">
-            <!-- Rendered by JS -->
-          </tfoot>
+          <tfoot id="report-tfoot"></tfoot>
         </table>
       </div>
 
@@ -121,11 +122,16 @@
   <!-- Toast -->
   <div class="toast-container" id="toast-container"></div>
 
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/supabase-config.js"></script>
   <script src="js/data.js"></script>
   <script src="js/app.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      App.initReport();
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { window.location.href = 'index.html'; return; }
+      await App.initReport();
     });
   </script>
 </body>
