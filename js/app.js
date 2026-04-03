@@ -15,6 +15,20 @@ var App = {
     }
   },
 
+  // --- Format Amount Input (tambah titik ribuan) ---
+  formatAmountInput: function(input) {
+    var value = input.value.replace(/\D/g, '');
+    if (value === '') { input.value = ''; return; }
+    input.value = new Intl.NumberFormat('id-ID').format(parseInt(value));
+  },
+
+  getAmountValue: function() {
+    var el = document.getElementById('txn-amount');
+    if (!el) return 0;
+    var raw = el.value.replace(/\./g, '').replace(/,/g, '');
+    return parseFloat(raw) || 0;
+  },
+
   // ============ AUTH ============
   authMode: 'login',
 
@@ -238,7 +252,7 @@ var App = {
     e.stopPropagation();
 
     var type = this.getSelectedType();
-    var amount = parseFloat(document.getElementById('txn-amount').value);
+    var amount = this.getAmountValue();
     var description = document.getElementById('txn-description').value.trim();
     var date = document.getElementById('txn-date').value;
 
@@ -286,7 +300,7 @@ var App = {
       document.getElementById('btn-delete-txn').classList.remove('hidden');
 
       this.setTransactionType(txn.type);
-      document.getElementById('txn-amount').value = txn.amount;
+      document.getElementById('txn-amount').value = new Intl.NumberFormat('id-ID').format(txn.amount);
       document.getElementById('txn-description').value = txn.description || '';
       document.getElementById('txn-date').value = txn.date;
 

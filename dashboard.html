@@ -38,7 +38,7 @@
       <!-- Greeting -->
       <div class="greeting">
         <p class="greeting__hello" id="greeting-hello">Selamat Pagi 👋</p>
-        <h2 class="greeting__name" id="greeting-name">User <span>!</span></h2>
+        <h2 class="greeting__name" id="greeting-name">... <span>!</span></h2>
       </div>
 
       <!-- Balance Card -->
@@ -115,10 +115,7 @@
           <a href="laporan.html" class="section-header__action">Lihat Semua →</a>
         </div>
         <div id="transaction-list">
-          <div style="text-align:center;padding:32px;">
-            <div class="spinner"></div>
-            <p style="margin-top:12px;color:var(--neutral-400);font-size:var(--font-size-sm);">Memuat data...</p>
-          </div>
+          <!-- Diisi oleh JS -->
         </div>
       </div>
     </main>
@@ -179,7 +176,7 @@
         <!-- Amount -->
         <div class="form-group">
           <label class="form-label" for="txn-amount">Jumlah (Rp)</label>
-          <input type="number" class="form-input" id="txn-amount" placeholder="0" min="1" required inputmode="numeric">
+          <input type="text" class="form-input" id="txn-amount" placeholder="0" required inputmode="numeric" oninput="App.formatAmountInput(this)">
         </div>
 
         <!-- Description -->
