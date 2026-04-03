@@ -80,9 +80,13 @@
   <script src="js/app.js"></script>
   <script>
     // Auto redirect if already logged in
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) window.location.href = 'dashboard.html';
+    (async function() {
+      try {
+        var result = await supabaseClient.auth.getSession();
+        if (result.data.session) window.location.href = 'dashboard.html';
+      } catch (err) {
+        console.error('[SakuKita] session check error:', err);
+      }
     })();
   </script>
 </body>
