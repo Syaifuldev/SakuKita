@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="Dashboard SakuKita — Kelola keuanganmu dengan mudah.">
+  <meta name="theme-color" content="#2D6EB5">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Dashboard — SakuKita</title>
+  <link rel="icon" type="image/png" href="assets/images/Logo.png">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <div class="app-shell">
+    <!-- ====== APP BAR ====== -->
+    <header class="app-bar">
+      <div class="app-bar__left">
+        <img src="assets/images/Logo.png" alt="Logo" class="app-bar__logo">
+        <div class="app-bar__title">Saku<span>Kita</span></div>
+      </div>
+      <div class="app-bar__right">
+        <button class="app-bar__icon-btn" onclick="App.logout()" title="Keluar" id="btn-logout">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ====== MAIN CONTENT ====== -->
+    <main class="main-content">
+      <!-- Greeting -->
+      <div class="greeting">
+        <p class="greeting__hello" id="greeting-hello">Selamat Pagi 👋</p>
+        <h2 class="greeting__name" id="greeting-name">User <span>!</span></h2>
+      </div>
+
+      <!-- Balance Card -->
+      <div class="balance-card">
+        <div class="balance-card__label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/></svg>
+          Saldo Bulan Ini
+        </div>
+        <div class="balance-card__amount" id="balance-amount">
+          <span class="currency">Rp</span>0
+        </div>
+        <div class="balance-card__row">
+          <div class="balance-card__stat balance-card__stat--income">
+            <div class="balance-card__stat-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+              Pemasukan
+            </div>
+            <div class="balance-card__stat-value" id="balance-income">Rp 0</div>
+          </div>
+          <div class="balance-card__stat balance-card__stat--expense">
+            <div class="balance-card__stat-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></svg>
+              Pengeluaran
+            </div>
+            <div class="balance-card__stat-value" id="balance-expense">Rp 0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary Mini Cards -->
+      <div class="summary-cards">
+        <div class="summary-card">
+          <div class="summary-card__icon summary-card__icon--income">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/></svg>
+          </div>
+          <div class="summary-card__info">
+            <div class="summary-card__label">Pemasukan</div>
+            <div class="summary-card__value" id="summary-income">Rp 0</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card__icon summary-card__icon--expense">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/></svg>
+          </div>
+          <div class="summary-card__info">
+            <div class="summary-card__label">Pengeluaran</div>
+            <div class="summary-card__value" id="summary-expense">Rp 0</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card__icon summary-card__icon--total">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/></svg>
+          </div>
+          <div class="summary-card__info">
+            <div class="summary-card__label">Saldo</div>
+            <div class="summary-card__value" id="summary-balance">Rp 0</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-card__icon summary-card__icon--count">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <div class="summary-card__info">
+            <div class="summary-card__label">Total</div>
+            <div class="summary-card__value" id="summary-count">0 catatan</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Transactions -->
+      <div class="transaction-list">
+        <div class="section-header">
+          <h3 class="section-header__title">Transaksi Terakhir</h3>
+          <a href="laporan.html" class="section-header__action">Lihat Semua →</a>
+        </div>
+        <div id="transaction-list">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+    </main>
+
+    <!-- ====== FAB ====== -->
+    <div class="fab">
+      <button class="fab__btn" onclick="App.openModal()" title="Tambah Catatan" id="fab-add">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- ====== BOTTOM NAV ====== -->
+    <nav class="bottom-nav">
+      <div class="bottom-nav__list">
+        <a href="dashboard.html" class="bottom-nav__item active" id="nav-dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          <span>Beranda</span>
+        </a>
+        <a href="laporan.html" class="bottom-nav__item" id="nav-laporan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <span>Laporan</span>
+        </a>
+      </div>
+    </nav>
+  </div>
+
+  <!-- ====== MODAL: Add / Edit Transaction ====== -->
+  <div class="modal-backdrop" id="modal-backdrop" onclick="App.closeModal()"></div>
+  <div class="modal" id="modal-add">
+    <div class="modal__handle"></div>
+    <div class="modal__header">
+      <h2 class="modal__title" id="modal-title">Tambah Catatan</h2>
+      <button class="modal__close" onclick="App.closeModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal__body">
+      <form id="form-transaction" onsubmit="App.handleSaveTransaction(event)">
+        <!-- Type Selector -->
+        <div class="form-group">
+          <label class="form-label">Tipe</label>
+          <div class="segment-control">
+            <button type="button" class="segment-control__btn segment-control__btn--income" data-type="income" onclick="App.setTransactionType('income')">
+              ↗️ Pemasukan
+            </button>
+            <button type="button" class="segment-control__btn segment-control__btn--expense active" data-type="expense" onclick="App.setTransactionType('expense')">
+              ↙️ Pengeluaran
+            </button>
+          </div>
+        </div>
+
+        <!-- Amount -->
+        <div class="form-group">
+          <label class="form-label" for="txn-amount">Jumlah (Rp)</label>
+          <input type="number" class="form-input" id="txn-amount" placeholder="0" min="1" required inputmode="numeric">
+        </div>
+
+        <!-- Description -->
+        <div class="form-group">
+          <label class="form-label" for="txn-description">Keterangan</label>
+          <input type="text" class="form-input" id="txn-description" placeholder="Contoh: Gaji bulanan, Makan siang" required>
+        </div>
+
+        <!-- Date -->
+        <div class="form-group">
+          <label class="form-label" for="txn-date">Tanggal</label>
+          <input type="date" class="form-input" id="txn-date" required>
+        </div>
+
+        <!-- Actions -->
+        <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-lg);">
+          <button type="button" class="btn btn--danger btn--sm hidden" id="btn-delete-txn" onclick="App.deleteTransaction()">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Hapus
+          </button>
+          <button type="submit" class="btn btn--primary btn--full" id="btn-save-txn">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Simpan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      App.init();
+      App.renderDashboard();
+      document.getElementById('txn-date').valueAsDate = new Date();
+    });
+  </script>
+</body>
+</html>
