@@ -108,7 +108,6 @@ var App = {
   renderDashboard: async function() {
     try {
       var user = await SakuKitaDB.getUser();
-      if (!user) { window.location.href = 'index.html'; return; }
 
       var greetingEl = document.getElementById('greeting-name');
       if (greetingEl) {
@@ -366,8 +365,6 @@ var App = {
 
   initReport: async function() {
     try {
-      var user = await SakuKitaDB.getUser();
-      if (!user) { window.location.href = 'index.html'; return; }
       await this.renderReport();
     } catch (err) {
       console.error('[SakuKita] initReport error:', err);

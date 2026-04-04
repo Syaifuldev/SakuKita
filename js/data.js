@@ -11,7 +11,8 @@ var SakuKitaDB = {
   // --- Set Current User (dipanggil dari onAuthStateChange) ---
   setCurrentUser: function(session) {
     if (session && session.user) {
-      this._currentUser = { id: session.user.id };
+      this._currentUser = this._currentUser || {};
+      this._currentUser.id = session.user.id;
     } else {
       this._currentUser = null;
     }
@@ -27,20 +28,26 @@ var SakuKitaDB = {
     var userId = this.getUserId();
     if (!userId) return null;
 
+    // Jika username sudah di-cache, langsung return
+    if (this._currentUser && this._currentUser.username) {
+      return { id: userId, username: this._currentUser.username };
+    }
+
     try {
       var result = await supabaseClient
         .from('profiles')
         .select('username')
-        .eq('id', userId)
-        .single();
+        .eq('id', userId);
 
-      if (result.data) {
-        return { id: userId, username: result.data.username };
+      if (result.data && result.data.length > 0) {
+        this._currentUser.username = result.data[0].username;
+        return { id: userId, username: result.data[0].username };
       }
-      return null;
+      // Profile belum ada, return dengan username default
+      return { id: userId, username: 'Pengguna' };
     } catch (err) {
       console.error('[SakuKita] getUser error:', err);
-      return null;
+      return { id: userId, username: 'Pengguna' };
     }
   },
 
@@ -51,10 +58,9 @@ var SakuKitaDB = {
       var existResult = await supabaseClient
         .from('profiles')
         .select('username')
-        .eq('username', username)
-        .single();
+        .eq('username', username);
 
-      if (existResult.data) return { error: 'Username sudah dipakai' };
+      if (existResult.data && existResult.data.length > 0) return { error: 'Username sudah dipakai' };
 
       // Sign up with fake email
       var email = username.toLowerCase().replace(/[^a-z0-9]/g, '') + '@sakukita.app';
@@ -70,6 +76,9 @@ var SakuKitaDB = {
 
       var userId = signUpResult.data.user.id;
 
+      // Cache user
+      this._currentUser = { id: userId, username: username };
+
       // Create profile
       var profileResult = await supabaseClient
         .from('profiles')
@@ -77,7 +86,7 @@ var SakuKitaDB = {
 
       if (profileResult.error) {
         console.error('[SakuKita] profile insert error:', profileResult.error);
-        return { error: profileResult.error.message };
+        // Jangan return error, profile mungkin gagal tapi auth sukses
       }
 
       return { user: { id: userId, username: username } };
@@ -100,6 +109,9 @@ var SakuKitaDB = {
         console.error('[SakuKita] login error:', result.error);
         return { error: 'Username atau password salah' };
       }
+
+      // Cache user dengan username
+      this._currentUser = { id: result.data.user.id, username: username };
 
       return { user: { id: result.data.user.id, username: username } };
     } catch (err) {
