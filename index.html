@@ -80,8 +80,8 @@
   <script src="js/app.js"></script>
   <script>
     // Auto redirect if already logged in
-    supabaseClient.auth.onAuthStateChange(function(event, session) {
-      if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+    onSakuKitaReady(function() {
+      if (_sakukitaUserId) {
         window.location.href = 'dashboard.html';
       }
     });

@@ -1,376 +1,196 @@
 /* ============================================
    SakuKita - Data Management (Supabase)
-   CRUD operasi transaksi keuangan
    ============================================ */
 
 var SakuKitaDB = {
 
-  // Cache user agar tidak query berulang
-  _currentUser: null,
+  _cachedUsername: null,
 
-  // --- Set Current User (dipanggil dari onAuthStateChange) ---
-  setCurrentUser: function(session) {
-    if (session && session.user) {
-      this._currentUser = this._currentUser || {};
-      this._currentUser.id = session.user.id;
-    } else {
-      this._currentUser = null;
-    }
-  },
-
-  // --- Get User ID (dari cache) ---
   getUserId: function() {
-    return this._currentUser ? this._currentUser.id : null;
+    return _sakukitaUserId;
   },
 
-  // --- Get User Profile (username) ---
   getUser: async function() {
     var userId = this.getUserId();
-    if (!userId) return null;
+    if (!userId) return { id: null, username: 'Pengguna' };
 
-    // Jika username sudah di-cache, langsung return
-    if (this._currentUser && this._currentUser.username) {
-      return { id: userId, username: this._currentUser.username };
+    if (this._cachedUsername) {
+      return { id: userId, username: this._cachedUsername };
     }
 
     try {
-      var result = await supabaseClient
-        .from('profiles')
-        .select('username')
-        .eq('id', userId);
-
-      if (result.data && result.data.length > 0) {
-        this._currentUser.username = result.data[0].username;
-        return { id: userId, username: result.data[0].username };
+      var r = await supabaseClient.from('profiles').select('username').eq('id', userId);
+      if (r.data && r.data.length > 0) {
+        this._cachedUsername = r.data[0].username;
+        return { id: userId, username: r.data[0].username };
       }
-      // Profile belum ada, return dengan username default
-      return { id: userId, username: 'Pengguna' };
-    } catch (err) {
-      console.error('[SakuKita] getUser error:', err);
-      return { id: userId, username: 'Pengguna' };
+    } catch (e) {
+      console.error('[SakuKita] getUser err:', e);
     }
+    return { id: userId, username: 'Pengguna' };
   },
 
-  // --- Register ---
   registerUser: async function(username, password) {
     try {
-      // Check if username is taken
-      var existResult = await supabaseClient
-        .from('profiles')
-        .select('username')
-        .eq('username', username);
+      var chk = await supabaseClient.from('profiles').select('username').eq('username', username);
+      if (chk.data && chk.data.length > 0) return { error: 'Username sudah dipakai' };
 
-      if (existResult.data && existResult.data.length > 0) return { error: 'Username sudah dipakai' };
-
-      // Sign up with fake email
       var email = username.toLowerCase().replace(/[^a-z0-9]/g, '') + '@sakukita.app';
-      var signUpResult = await supabaseClient.auth.signUp({
-        email: email,
-        password: password
-      });
+      var res = await supabaseClient.auth.signUp({ email: email, password: password });
 
-      if (signUpResult.error) {
-        console.error('[SakuKita] signUp error:', signUpResult.error);
-        return { error: signUpResult.error.message };
-      }
+      if (res.error) return { error: res.error.message };
 
-      var userId = signUpResult.data.user.id;
+      var uid = res.data.user.id;
+      _sakukitaUserId = uid;
+      this._cachedUsername = username;
 
-      // Cache user
-      this._currentUser = { id: userId, username: username };
-
-      // Create profile
-      var profileResult = await supabaseClient
-        .from('profiles')
-        .insert({ id: userId, username: username });
-
-      if (profileResult.error) {
-        console.error('[SakuKita] profile insert error:', profileResult.error);
-        // Jangan return error, profile mungkin gagal tapi auth sukses
-      }
-
-      return { user: { id: userId, username: username } };
-    } catch (err) {
-      console.error('[SakuKita] registerUser error:', err);
-      return { error: 'Terjadi kesalahan. Coba lagi.' };
+      await supabaseClient.from('profiles').insert({ id: uid, username: username });
+      return { user: { id: uid, username: username } };
+    } catch (e) {
+      console.error('[SakuKita] register err:', e);
+      return { error: 'Terjadi kesalahan' };
     }
   },
 
-  // --- Login ---
   loginUser: async function(username, password) {
     try {
       var email = username.toLowerCase().replace(/[^a-z0-9]/g, '') + '@sakukita.app';
-      var result = await supabaseClient.auth.signInWithPassword({
-        email: email,
-        password: password
-      });
+      var res = await supabaseClient.auth.signInWithPassword({ email: email, password: password });
 
-      if (result.error) {
-        console.error('[SakuKita] login error:', result.error);
-        return { error: 'Username atau password salah' };
-      }
+      if (res.error) return { error: 'Username atau password salah' };
 
-      // Cache user dengan username
-      this._currentUser = { id: result.data.user.id, username: username };
-
-      return { user: { id: result.data.user.id, username: username } };
-    } catch (err) {
-      console.error('[SakuKita] loginUser error:', err);
-      return { error: 'Gagal login. Periksa koneksi internet.' };
+      _sakukitaUserId = res.data.user.id;
+      this._cachedUsername = username;
+      return { user: { id: res.data.user.id, username: username } };
+    } catch (e) {
+      console.error('[SakuKita] login err:', e);
+      return { error: 'Gagal login' };
     }
   },
 
-  // --- Logout ---
   logoutUser: async function() {
-    try {
-      this._currentUser = null;
-      await supabaseClient.auth.signOut();
-    } catch (err) {
-      console.error('[SakuKita] logout error:', err);
-    }
+    _sakukitaUserId = null;
+    this._cachedUsername = null;
+    try { await supabaseClient.auth.signOut(); } catch(e) {}
   },
 
-  // --- Get All Transactions ---
   getAll: async function() {
-    var userId = this.getUserId();
-    if (!userId) return [];
-
+    var uid = this.getUserId();
+    if (!uid) return [];
     try {
-      var result = await supabaseClient
-        .from('transactions')
-        .select('*')
-        .eq('user_id', userId)
-        .order('date', { ascending: false });
-
-      return result.data || [];
-    } catch (err) {
-      console.error('[SakuKita] getAll error:', err);
-      return [];
-    }
+      var r = await supabaseClient.from('transactions').select('*').eq('user_id', uid).order('date', { ascending: false });
+      return r.data || [];
+    } catch(e) { return []; }
   },
 
-  // --- Add Transaction ---
-  add: async function(transaction) {
-    var userId = this.getUserId();
-    if (!userId) return null;
-
+  add: async function(t) {
+    var uid = this.getUserId();
+    if (!uid) { console.error('[SakuKita] add: no userId'); return null; }
     try {
-      var result = await supabaseClient
-        .from('transactions')
-        .insert({
-          user_id: userId,
-          type: transaction.type,
-          amount: transaction.amount,
-          description: transaction.description,
-          date: transaction.date
-        })
-        .select()
-        .single();
-
-      if (result.error) {
-        console.error('[SakuKita] add error:', result.error);
-        return null;
-      }
-      return result.data;
-    } catch (err) {
-      console.error('[SakuKita] add error:', err);
-      return null;
-    }
+      var r = await supabaseClient.from('transactions')
+        .insert({ user_id: uid, type: t.type, amount: t.amount, description: t.description, date: t.date })
+        .select();
+      if (r.error) { console.error('[SakuKita] add err:', r.error); return null; }
+      return r.data && r.data.length > 0 ? r.data[0] : null;
+    } catch(e) { console.error('[SakuKita] add err:', e); return null; }
   },
 
-  // --- Update Transaction ---
-  update: async function(id, updatedData) {
+  update: async function(id, d) {
     try {
-      var result = await supabaseClient
-        .from('transactions')
-        .update({
-          type: updatedData.type,
-          amount: updatedData.amount,
-          description: updatedData.description,
-          date: updatedData.date
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-      return result.data || null;
-    } catch (err) {
-      console.error('[SakuKita] update error:', err);
-      return null;
-    }
+      var r = await supabaseClient.from('transactions')
+        .update({ type: d.type, amount: d.amount, description: d.description, date: d.date })
+        .eq('id', id).select();
+      return r.data && r.data.length > 0 ? r.data[0] : null;
+    } catch(e) { return null; }
   },
 
-  // --- Delete Transaction ---
   delete: async function(id) {
     try {
-      var result = await supabaseClient
-        .from('transactions')
-        .delete()
-        .eq('id', id);
-
-      return !result.error;
-    } catch (err) {
-      console.error('[SakuKita] delete error:', err);
-      return false;
-    }
+      var r = await supabaseClient.from('transactions').delete().eq('id', id);
+      return !r.error;
+    } catch(e) { return false; }
   },
 
-  // --- Get Transaction By ID ---
   getById: async function(id) {
     try {
-      var result = await supabaseClient
-        .from('transactions')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      return result.data || null;
-    } catch (err) {
-      console.error('[SakuKita] getById error:', err);
-      return null;
-    }
+      var r = await supabaseClient.from('transactions').select('*').eq('id', id);
+      return r.data && r.data.length > 0 ? r.data[0] : null;
+    } catch(e) { return null; }
   },
 
-  // --- Filter By Month/Year ---
   getByMonth: async function(month, year) {
-    var userId = this.getUserId();
-    if (!userId) return [];
-
+    var uid = this.getUserId();
+    if (!uid) return [];
     try {
-      var startDate = year + '-' + String(month + 1).padStart(2, '0') + '-01';
-      var endMonth = month + 1 > 11 ? 0 : month + 1;
-      var endYear = month + 1 > 11 ? year + 1 : year;
-      var endDate = endYear + '-' + String(endMonth + 1).padStart(2, '0') + '-01';
-
-      var result = await supabaseClient
-        .from('transactions')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('date', startDate)
-        .lt('date', endDate)
-        .order('date', { ascending: true });
-
-      return result.data || [];
-    } catch (err) {
-      console.error('[SakuKita] getByMonth error:', err);
-      return [];
-    }
+      var s = year + '-' + String(month+1).padStart(2,'0') + '-01';
+      var em = month+1 > 11 ? 0 : month+1;
+      var ey = month+1 > 11 ? year+1 : year;
+      var e = ey + '-' + String(em+1).padStart(2,'0') + '-01';
+      var r = await supabaseClient.from('transactions').select('*').eq('user_id', uid).gte('date', s).lt('date', e).order('date', { ascending: true });
+      return r.data || [];
+    } catch(e) { return []; }
   },
 
-  // --- Calculate Summary (sync) ---
-  getSummary: function(transactions) {
-    var totalIncome = 0;
-    var totalExpense = 0;
-
-    transactions.forEach(function(t) {
-      var amount = parseFloat(t.amount) || 0;
-      if (t.type === 'income') totalIncome += amount;
-      else if (t.type === 'expense') totalExpense += amount;
+  getSummary: function(txns) {
+    var inc = 0, exp = 0;
+    txns.forEach(function(t) {
+      var a = parseFloat(t.amount) || 0;
+      if (t.type === 'income') inc += a; else exp += a;
     });
-
-    return {
-      totalIncome: totalIncome,
-      totalExpense: totalExpense,
-      balance: totalIncome - totalExpense,
-      count: transactions.length
-    };
+    return { totalIncome: inc, totalExpense: exp, balance: inc - exp, count: txns.length };
   },
 
-  // --- Get Summary for Current Month ---
   getCurrentMonthSummary: async function() {
     var now = new Date();
-    var monthTxns = await this.getByMonth(now.getMonth(), now.getFullYear());
-    return this.getSummary(monthTxns);
+    var t = await this.getByMonth(now.getMonth(), now.getFullYear());
+    return this.getSummary(t);
   },
 
-  // --- Get Recent Transactions ---
   getRecent: async function(limit) {
-    limit = limit || 15;
-    var userId = this.getUserId();
-    if (!userId) return [];
-
+    var uid = this.getUserId();
+    if (!uid) return [];
     try {
-      var result = await supabaseClient
-        .from('transactions')
-        .select('*')
-        .eq('user_id', userId)
-        .order('date', { ascending: false })
-        .limit(limit);
-
-      return result.data || [];
-    } catch (err) {
-      console.error('[SakuKita] getRecent error:', err);
-      return [];
-    }
+      var r = await supabaseClient.from('transactions').select('*').eq('user_id', uid).order('date', { ascending: false }).limit(limit || 15);
+      return r.data || [];
+    } catch(e) { return []; }
   },
 
-  // --- Group By Date (sync) ---
-  groupByDate: function(transactions) {
-    var grouped = {};
-    transactions.forEach(function(t) {
-      var dateKey = t.date;
-      if (!grouped[dateKey]) grouped[dateKey] = [];
-      grouped[dateKey].push(t);
-    });
-    return grouped;
+  groupByDate: function(txns) {
+    var g = {};
+    txns.forEach(function(t) { if (!g[t.date]) g[t.date] = []; g[t.date].push(t); });
+    return g;
   },
 
-  // --- Format Currency (sync) ---
-  formatCurrency: function(amount) {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'decimal',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
+  formatCurrency: function(a) {
+    return new Intl.NumberFormat('id-ID').format(a);
   },
 
-  // --- Format Date (sync) ---
-  formatDate: function(dateStr) {
-    var d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  formatDate: function(d) {
+    return new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
   },
 
-  formatDateShort: function(dateStr) {
-    var d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  formatDateShort: function(d) {
+    return new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
   },
 
-  // --- Seed Demo Data ---
   seedDemoData: async function() {
-    var userId = this.getUserId();
-    if (!userId) return;
-
+    var uid = this.getUserId();
+    if (!uid) return;
     try {
-      var countResult = await supabaseClient
-        .from('transactions')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId);
-
-      if (countResult.count > 0) return;
-
-      var now = new Date();
-      var year = now.getFullYear();
-      var mm = String(now.getMonth() + 1).padStart(2, '0');
-
-      var demoData = [
-        { user_id: userId, type: 'income', amount: 5000000, description: 'Gaji Bulanan', date: year + '-' + mm + '-01' },
-        { user_id: userId, type: 'expense', amount: 150000, description: 'Makan siang & kopi', date: year + '-' + mm + '-02' },
-        { user_id: userId, type: 'expense', amount: 50000, description: 'Grab ke kantor', date: year + '-' + mm + '-02' },
-        { user_id: userId, type: 'income', amount: 1200000, description: 'Proyek desain web', date: year + '-' + mm + '-05' },
-        { user_id: userId, type: 'expense', amount: 350000, description: 'Belanja mingguan', date: year + '-' + mm + '-07' },
-        { user_id: userId, type: 'expense', amount: 500000, description: 'Tagihan listrik & WiFi', date: year + '-' + mm + '-10' },
-        { user_id: userId, type: 'expense', amount: 100000, description: 'Nonton bioskop', date: year + '-' + mm + '-12' },
-        { user_id: userId, type: 'income', amount: 300000, description: 'Hadiah ulang tahun', date: year + '-' + mm + '-15' },
-        { user_id: userId, type: 'expense', amount: 250000, description: 'Vitamin & suplemen', date: year + '-' + mm + '-18' },
-        { user_id: userId, type: 'expense', amount: 75000, description: 'Cemilan & minuman', date: year + '-' + mm + '-20' },
-        { user_id: userId, type: 'income', amount: 800000, description: 'Penjualan online', date: year + '-' + mm + '-22' },
-        { user_id: userId, type: 'expense', amount: 200000, description: 'Beli buku & kursus', date: year + '-' + mm + '-25' }
+      var c = await supabaseClient.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', uid);
+      if (c.count > 0) return;
+      var now = new Date(), y = now.getFullYear(), mm = String(now.getMonth()+1).padStart(2,'0');
+      var data = [
+        { user_id: uid, type: 'income', amount: 5000000, description: 'Gaji Bulanan', date: y+'-'+mm+'-01' },
+        { user_id: uid, type: 'expense', amount: 150000, description: 'Makan siang', date: y+'-'+mm+'-02' },
+        { user_id: uid, type: 'expense', amount: 50000, description: 'Transport', date: y+'-'+mm+'-03' },
+        { user_id: uid, type: 'income', amount: 1200000, description: 'Freelance', date: y+'-'+mm+'-05' },
+        { user_id: uid, type: 'expense', amount: 350000, description: 'Belanja', date: y+'-'+mm+'-07' },
+        { user_id: uid, type: 'expense', amount: 500000, description: 'Listrik & WiFi', date: y+'-'+mm+'-10' },
+        { user_id: uid, type: 'income', amount: 300000, description: 'Bonus', date: y+'-'+mm+'-15' },
+        { user_id: uid, type: 'expense', amount: 200000, description: 'Buku', date: y+'-'+mm+'-20' }
       ];
-
-      await supabaseClient.from('transactions').insert(demoData);
-      console.log('[SakuKita] Demo data inserted');
-    } catch (err) {
-      console.error('[SakuKita] seedDemoData error:', err);
-    }
+      await supabaseClient.from('transactions').insert(data);
+    } catch(e) { console.error('[SakuKita] seed err:', e); }
   }
 };

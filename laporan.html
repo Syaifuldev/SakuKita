@@ -128,20 +128,15 @@
   <script src="js/data.js"></script>
   <script src="js/app.js"></script>
   <script>
-    // Wait for Supabase auth to be ready
-    var reportReady = false;
-    supabaseClient.auth.onAuthStateChange(async function(event, session) {
-      if (reportReady) return;
-      if (!session) {
+    onSakuKitaReady(async function() {
+      if (!_sakukitaUserId) {
         window.location.href = 'index.html';
         return;
       }
-      reportReady = true;
       try {
-        SakuKitaDB.setCurrentUser(session);
         await App.initReport();
       } catch (err) {
-        console.error('[SakuKita] laporan init error:', err);
+        console.error('[SakuKita] laporan err:', err);
       }
     });
   </script>
