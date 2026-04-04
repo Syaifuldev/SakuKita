@@ -225,6 +225,8 @@
       }
       dashboardReady = true;
       try {
+        // Set user dari session (tanpa network call)
+        SakuKitaDB.setCurrentUser(session);
         await App.init();
         await App.renderDashboard();
         document.getElementById('txn-date').valueAsDate = new Date();

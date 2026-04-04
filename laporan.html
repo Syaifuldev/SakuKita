@@ -138,6 +138,7 @@
       }
       reportReady = true;
       try {
+        SakuKitaDB.setCurrentUser(session);
         await App.initReport();
       } catch (err) {
         console.error('[SakuKita] laporan init error:', err);
